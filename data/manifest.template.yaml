@@ -1,0 +1,68 @@
+# Run manifest. Copy to data/runs/<run_id>/manifest.yaml and fill in.
+# Rule: no manifest, no data. Every number in a writeup traces back to a run_id.
+
+run_id: ""            # YYYYMMDD-chNN-<arm>-<seq>
+date: ""
+chapter: ""           # ch00 .. ch09
+arm: ""               # e.g. baseline / fp8kv / host-256g / fs-cloud-hiiops
+purpose: ""           # one sentence: which question in plan/02-mainline.md this run serves
+kind: ""              # measurement | microbench | dev (dev runs never produce official numbers)
+
+hardware:
+  node_type: ""
+  gpu: { model: "", count: 0, hbm_gb: 0 }
+  pcie: { gen: 0, width: 0 }
+  topology: ""        # paste of nvidia-smi topo -m (or path to file)
+  numa: ""
+  host_mem_gb: 0
+  disks: [ { type: "", size_gb: 0, nominal_iops: 0, nominal_bw_mbps: 0, scheduler: "", queue_depth: 0 } ]
+  network: { type: "", rdma: "", gdr: "" }   # e.g. eRDMA, GPUDirect RDMA yes/no/unknown
+
+software:
+  os_kernel: ""
+  driver_cuda: ""
+  vllm_commit: ""
+  kv_transfer_config: ""     # verbatim JSON
+  attention_backend: ""
+  mooncake_version: ""
+  nixl_version: ""
+  client: { name: "", commit: "" }   # e.g. evalscope @ <commit>
+  other: {}
+
+model:
+  name: ""
+  revision: ""
+  dtype: ""
+  kv_dtype: ""
+  parallel: { tp: 0, dp: 0, ep: 0 }
+  max_model_len: 0
+  gpu_memory_utilization: 0
+  max_num_batched_tokens: 0
+  max_num_seqs: 0
+
+workload:
+  trace_source: ""     # e.g. AgentX @ <version>, OpenHands padded
+  trace_sha256: ""
+  builder_args: ""     # verbatim
+  session_shape: { turns: 0, first_turn_tokens: 0, later_turn_tokens: 0, output_tokens: 0, inter_turn_gap: "" }
+  slo: { p99_ttft_ms: 0, p99_tpot_ms: 0 }
+
+sweep:
+  variable: ""         # e.g. concurrency
+  points: []
+  warmup_requests: 0
+  steady_window_s: 0
+  repeats: 0
+  fresh_sessions_per_point: true
+
+metrics:
+  scrape_interval_s: 0
+  metric_names: {}     # actual names in this vllm version, e.g. preemptions: "vllm:num_preemptions_total"
+
+artifacts:
+  launch_script: "launch.sh"
+  summary: "summary.csv"
+  raw_location: ""     # local path or object storage URI
+  raw_sha256: ""
+
+notes: ""              # anomalies, restarts, anything unusual

@@ -1,0 +1,5 @@
+# Inside each run dir only manifest.yaml, launch.sh, summary.* are tracked.
+runs/*/raw/
+runs/*/metrics/
+runs/*/logs/
+runs/*/*.log

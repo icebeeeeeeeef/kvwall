@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.python-version
+.ipynb_checkpoints/
+
+# Experiment data: raw results, metrics samples, logs never enter the repo.
+# manifest.yaml / summary.* / launch.sh inside each run dir are tracked (see data/.gitignore).
+data/runs/*/raw/
+data/runs/*/metrics/
+data/runs/*/logs/
+data/traces/*
+!data/traces/README.md
+!data/traces/*.md
+!data/traces/*.sha256
+
+# Models / large artifacts
+*.safetensors
+*.bin
+*.pt
+*.gguf
+*.parquet
+*.jsonl
+*.tar
+*.tar.gz
+*.zip
+
+# Profiler output
+*.nsys-rep
+*.qdrep
+*.sqlite
+perf.data*
+*.svg.gz
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Secrets / cloud credentials
+.env
+*.pem
+*.key
+credentials*
