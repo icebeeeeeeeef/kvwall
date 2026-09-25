@@ -32,7 +32,7 @@
 | JD 条目 / 关键词 | 章节 |
 |---|---|
 | 多级缓存 GPU → DRAM → SSD → 远端 | Ch1 → Ch2 → Ch3 → Ch5，每层一章 |
-| RDMA | Ch5、Ch6（eRDMA 实测） |
+| RDMA | Ch5、Ch6（eRDMA 实测）；阶段 1 副线 verbs 自研基准与 Transfer Engine 源码（`09` §6） |
 | GDS | Ch3（若可用：直通 vs host 中转对照；否则只讨论框架为何走 host） |
 | io_uring / O_DIRECT / NVMe / 云盘 | Ch3 |
 | 零拷贝、IO 路径、全链路瓶颈分析 | Ch2（PCIe、pinned）、Ch3、Ch5；各章差距分析 |
@@ -41,7 +41,7 @@
 | 前缀 / 滑动窗口复用 | Ch1、Ch8 |
 | PD 分离下的池化、一致性 | Ch6、Ch5 |
 | 全局调度 | Ch7（KV events → router） |
-| 量化 / 压缩落地 | Ch1 的 FP8 KV 臂 |
+| 量化 / 压缩落地 | Ch1 的 FP8 KV 臂；INT4 / KIVI 离线小实操（`09` Ch1，项目外） |
 | 独立分布式缓存服务、与引擎解耦、监控告警 | Ch4（起步）、Ch5（MooncakeStore standalone + Grafana + 告警规则） |
 | 推理框架性能优化 | 各章 nsys 差距分析；投机解码与卸载交互为可选臂 |
 | vLLM 源码级 | 主引擎，阶段 0 起 |
@@ -59,7 +59,7 @@
 - **Raft**：不硬凑。面试中作为已知概念讨论。
 - **Redis / Alluxio / Ceph 经验**：无；用对象存储实习与本项目的 tier 工作替代叙事。
 - **CXL**：个人碰不到。
-- **SPDK**：没有本地 NVMe 没意义。
+- **SPDK**：不进主线测量；项目外用 malloc / aio bdev 做无硬件小实操，理解到 L2（D-019，`09` Ch3）。
 - **TensorRT-LLM**：不覆盖。
 
 ## 5. 面试中怎么用这张图

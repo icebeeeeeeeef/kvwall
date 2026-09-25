@@ -16,7 +16,7 @@
 
 ```
 kvwall/
-├── plan/            总体方案规划（策略、主线、方法论、基础设施、JD 映射、参考、决策日志、开放问题）
+├── plan/            总体方案规划（策略、主线、方法论、基础设施、JD 映射、参考、决策日志、开放问题、学习路线）
 ├── notes/           过程记录
 │   ├── reading/       阅读笔记（每篇 ★★★ 参考一页）
 │   ├── discussions/   讨论记录
@@ -30,9 +30,9 @@ kvwall/
 │   ├── slo/           SLO 约束下的容量计算、goodput
 │   └── scrape/        /metrics 定时抓取
 ├── micro/           微基准：先打硬件天花板
-│   ├── pcie/          H2D / D2H、pinned vs pageable、chunk 尺寸、多流、NUMA
-│   ├── blockdev/      fio 配方：O_DIRECT / io_uring / QD / bs
-│   └── rdma/          perftest 配方与解析
+│   ├── pcie/          H2D / D2H、pinned vs pageable、chunk 尺寸、多流、NUMA；CUDA C++ 自研基准
+│   ├── blockdev/      fio 配方：O_DIRECT / io_uring / QD / bs；liburing 自研基准
+│   └── rdma/          perftest 配方与解析；verbs 自研基准
 ├── analysis/        数据处理与绘图
 │   ├── capacity/      容量模型（算术 → 预测；后与测量对比）
 │   ├── plots/         固定样式的前沿曲线、机制指标、副作用图
@@ -67,8 +67,9 @@ plan/02-mainline.md（章的问题与最小配置）
 
 1. `plan/README.md` — 规划总览与阅读顺序
 2. `plan/02-mainline.md` — 技术主线（章节、规模阶梯、模型选择）
-3. `plan/03-methodology.md` — 闭环怎么做、怎么算完、怎么写
-4. `plan/07-decision-log.md` — 已做的决定和理由
+3. `plan/09-learning-roadmap.md` — 前置知识与各章学习 / 实践的融合方式
+4. `plan/03-methodology.md` — 闭环怎么做、怎么算完、怎么写
+5. `plan/07-decision-log.md` — 已做的决定和理由
 
 ## 约定
 
@@ -82,3 +83,4 @@ plan/02-mainline.md（章的问题与最小配置）
 ## 状态
 
 - 2026-09-18：规划初始化（`plan/`），目录骨架建立。阶段 0 尚未开始。
+- 2026-09-23：新增学习路线 `plan/09-learning-roadmap.md`；决策 D-016 ~ D-019（自研访问模式微基准、真 Linux 开发环境、阶段 0 拆出预备期、SPDK 项目外小实操）。下一步：预备期。
