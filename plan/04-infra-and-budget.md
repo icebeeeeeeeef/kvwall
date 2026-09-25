@@ -1,70 +1,81 @@
 # 04 基础设施与预算
 
-## 1. 三个环境
+2026-09-25：依据 D-021 调整学习/实验环境；不以卡数区分「有无正式数字」。以下是候选配置，不是资源采购承诺，实际库存、权限和数据路径在每次租用前核验。
 
-| 环境 | 配置 | 用途 | 规则 |
+## 1. 三类环境，按要证明的行为升级
+
+| 环境 | 候选配置 | 用途 | 证据边界 |
 |---|---|---|---|
-| 开发 | 1×L20（或本地一张卡）+ 7B 级模型 + 云盘；真 Linux，不用 WSL（D-017） | 跑通所有脚本、调试、平台开发；io_uring / Soft-RoCE / 自研微基准的开发 | 不出任何正式数字 |
-| 单节点测量 | 一节点 2–4×L20 TP2 / TP4，两种盘型 | Part I 正式扫描 | 只用来出数据；无人值守跑完整矩阵 |
-| 多机 | 两节点 × 4×L20，eRDMA；CPU-only 节点可选 | Part II | 压成几个连续整天窗口；开机即测 |
+| 开发与机制验证 | 本地 RTX 4060 + 可装下的小型 dense/GQA（优先 0.5B～1.5B）；WSL 或原生 Linux | 运行请求、负载/runner、容量/指标脚本、CPU 状态机与小 GPU 测试 | 允许记录可复现结果；不能外推数据中心性能或未执行的路径 |
+| 单节点测量 | 单卡 24/48GB 起步；需要 TP 分片时 2 卡，需要多卡竞争/两个 TP2 实例时 4×L20；存储按问题选择 | Ch1–Ch4 的容量、回载、IO 和同节点复用 | 微基准与端到端区分；云盘与本地 NVMe 区分；同机多进程功能验证不等于隔离性能 |
+| 跨节点测量 | 按所选模型与问题确定 GPU 数；两节点、目标网络，CPU-only 远端池可选 | Ch5–Ch7 的远端复用、PD 与路由 | TCP/Soft-RoCE 不能证明硬件 RDMA 吞吐；8 卡配置只在实验问题需要时使用 |
 
-本地若购一张卡用于开发，不必是 L20。
+WSL 可以写代码、跑小模型和部分 CUDA 功能测试，不再限定为「只能写文档」。需要内核模块、设备访问、严格 IO/拓扑测量时使用经过验机的原生 Linux。容器里有 root 不等于可以加载宿主内核模块或访问裸设备。
 
-## 2. 云资源调研（截至规划时）
+每次配置至少记录 OS/内核、容器/虚拟化、GPU/驱动/runtime、CPU/RAM、PCIe/NUMA、存储挂载与网络路径。实际显存以设备报告为准，模型能否运行以所钉版本的实测为准。
 
-| 要求 | 当前结论 | 对主线的影响 |
+## 2. 能力核验，而非只按 GPU 型号下单
+
+| 能力 | 必须确认的事实 | 不允许的推断 |
 |---|---|---|
-| 本地物理 NVMe | 普通 GPU 实例方案不满足；高性能网络机型有能力但未落实可购配置 | Ch3 不依赖它；可购时用同一平台重跑 |
-| 裸块设备、O_DIRECT、io_uring | 云盘块设备路径可做；不等于物理 NVMe 透传；内核、操作码、对齐需验机 | Ch3 起步路径；标注「云盘」 |
-| 跨节点高速网络 | eRDMA 有明确支持路径；标称带宽 ≠ 实测 RDMA 吞吐 | Ch5 / Ch6；先 perftest；GPUDirect RDMA 支持待确认 |
-| GDS 直接路径 | 待确认；不能作为下单后的必有能力 | 当 bonus；没有本地 NVMe 意义也不大 |
-| 显存、卡型 | L20 48GB 单卡 / 多卡规格明确 | PCIe Gen4、无 NVLink：offload 天花板是 PCIe，P2P 走 PCIe 或 host |
-| 同机双引擎 | 可部署；单卡双进程验功能，双卡做性能对照 | Ch4 / Ch6 起步 |
+| CPU KV 池 | 物理/容器 RAM 上限、剩余内存、可 pin/注册范围、NUMA | GPU 显存足够就能开 256GB host 池 |
+| 本地 NVMe/云盘 | 实际块设备、挂载类型、是否共享、允许的测试路径、IOPS/带宽限额 | 容器有 SSD 目录就等于 NVMe 透传 |
+| O_DIRECT/io_uring | 内核、所用操作、对齐、权限与真实完成结果 | Linux/云盘一定支持所有操作 |
+| RDMA | 两端设备/驱动、网络可达、perftest、所用传输后端与 payload 校验 | 大带宽网卡或 RDMA 可用就等于 GPU Direct 可用 |
+| GDS | cuFile/驱动/文件系统/设备组合，直接还是兼容模式 | API 成功就等于 SSD→GPU 直通 |
+| GPU P2P/NVLink | 实际拓扑和访问/复制能力 | 同卡型/同卡数必然有相同传输路径 |
+| profiling | nsys/perf/py-spy/DCGM 可用范围与权限 | 开发环境能采的指标在目标机一定可采 |
+
+本地 NVMe 与 GDS 不作为 Ch3 启动的必有条件：云块设备可先研究软件 IO 路径，但必须标注「云盘」。eRDMA 是跨节点候选；具体实例、后端和 GPU Direct 的组合逐次验证，不依据历史调研断言可用或不可用。
+
+IO/SPDK 写实验只用专用测试文件或确认无重要数据的专用设备，不对系统盘、共享盘或不明裸设备做破坏性测试。
 
 ## 3. 软件栈与版本钉死
 
 | 组件 | 作用 | 钉死方式 | 状态 |
 |---|---|---|---|
-| vLLM | 主引擎；tiered KV offloading（`TieringOffloadingSpec`，fs / obj / p2p tier，`SecondaryTierManager` 接口，per-tier metrics，KV events） | commit hash，每章一钉 | 待钉 |
-| MooncakeStore / Transfer Engine | 远端池；standalone 模式 | 版本 / commit | 待钉 |
-| NIXL | obj / p2p tier 的传输；NixlConnector（GPU 直传 PD） | 版本 | 待钉 |
-| SGLang + HiCache | 阶段 2 对照臂 | commit | 阶段 2 |
-| 路由 | Dynamo frontend 或 SGLang router（cache-aware） | 版本 | 阶段 2 |
-| EvalScope（`perf`，多轮） | 压测客户端；沿用 vLLM 博客配方 | commit | 待钉 |
-| AIPerf / vllm bench | 备选压测客户端 | 版本 | 可选 |
-| Prometheus + Grafana | 指标抓取与面板 | docker 镜像 tag | 待定 |
-| nsys、DCGM、perf、py-spy、fio、iostat、numactl、perftest | 硬件层与差距分析工具 | 记录版本 | — |
+| vLLM | 主引擎；prefix/KV 管理、offload 与传输接口 | commit、安装方式、原生扩展版本；每个 A/B 两臂明确差异 | 待钉 |
+| MooncakeStore / Transfer Engine | 远端池与数据搬运 | 版本/commit、实际加载后端 | 接入时钉 |
+| NIXL | 对象/点对点传输与 PD | 版本、UCX/插件及运行路径 | 接入时钉 |
+| SGLang + HiCache | 对照或特定适配工作 | commit | 按问题引入，不成为首个闭环前置 |
+| 路由 | Dynamo/SGLang 等现成组件 | 版本及 cache event 格式 | 后续 |
+| EvalScope / AIPerf / vllm bench | 压测客户端候选 | 工具 commit、负载参数与时间/命中定义 | 首个闭环只选一个，缺少多轮语义时写薄适配 |
+| Prometheus + Grafana | 观测面板 | 镜像 tag | 首版只抓原始 metrics，不要求先搭面板 |
+| nsys、DCGM、perf、py-spy、fio、iostat、numactl、perftest | 路径、硬件与差距分析 | 记录版本和采样开销 | 按需 |
 | Python 环境 | 平台脚本 | lock 文件 | 待建 |
+
+审计实际开启的 attention backend、chunked prefill、CUDA graph、prefix caching 与 dtype；「没有显式设置」不等于没有启用。首个最小项目不要求外部 KV connector，后续逐路径接入并测试组合兼容性。
 
 ## 4. 数据与工具来源
 
-- **SemiAnalysis AgentX**：真实 agentic coding trace 的公开 benchmark（中位 43 轮、142K 输入、444 输出、前缀命中率 >96%、44% 会话含子 agent）。负载刻画与回放的首选。格式与许可待确认。
-- **Mooncake trace**：公开请求 trace。
-- **OpenHands padded 数据集构造脚本 + EvalScope 多轮配方**：vLLM GLM 5.3 博客附录，自包含、可钉 commit。
-- **neuralmagic/fs-offload-experiments**：vLLM tiered offloading 博客的复现脚本。平台骨架的起点。
+- SemiAnalysis AgentX、Mooncake 公开 trace：候选真实负载来源；获取、格式、许可和 tokenizer 适配必须先确认。
+- vLLM 相关博客的 OpenHands padded 数据构造与 EvalScope 多轮配方、`neuralmagic/fs-offload-experiments`：候选复现材料，链接见 [06](06-references.md)，接口与可用版本须实查。
+- 首版允许明确标为 synthetic 的 agent-like 多轮负载，不以取得某份 trace 为开工门槛；保持种子、输入 token、轮间 gap 与共享结构可复现。
+- 固定 token 回放用于控制性能变量，使用前轮真实输出的会话用于语义验证；两者分开说明，不声称固定回放是完整 agent 运行。
 
 ## 5. 预算形态规则
 
-形态比总额重要：
-
-1. **开发时间与测量时间严格分开**。开发在 1 卡；测量在 4 卡或两节点无人值守。租来的多卡时间不调试。
-2. **多机窗口集中**。环境镜像化、脚本化；开机即测；跑完即释放。
-3. **粗估量级**：Part I 正式扫描在 4 卡上是低三位数 GPU 小时；Part II 两节点集中窗口是同一量级。每章 6–8 个扫描点 × 2–4 个臂 × 3 次重复 × 5–10 分钟稳态。
-4. **大模型只跑一个点**。
-5. 每次租用前写清本次要出的数据表格（哪些点、哪些臂）；租用后按表格跑；没在表格里的不跑。
+1. 本地先完成准备、功能与小扫描；租 GPU 前知道要回答什么，禁止为了名词覆盖先买硬件。
+2. 允许一个验机与 smoke 窗口；通过后再运行正式矩阵，不能假设镜像上机绝对不需联调。
+3. 多机窗口集中，环境镜像化/脚本化；测试结束导出数据并核对存储保留规则，再释放资源。
+4. 粗算：每章 6–8 点 × 2–4 臂 × 3 次 × 5–10 分钟，仅稳态部分约 3–16 节点小时；四卡是 12–64 GPU 小时，另计预热、编译、验机、复测、磁盘与传输费用。实际样本量决定测量时长，不为符合预算牺牲统计定义。
+5. 先在便宜配置缩小参数范围，再对 TP/多卡/多机特有机制补点；大模型只做有问题意识的验证点。
+6. 每次租用前写明表格、待区分假设、结束条件；没有出现预期瓶颈可以是结论，不临时无限扩大扫描。
 
 ## 6. 自动化要求
 
-平台骨架在阶段 0 必须做到：
+阶段 0 逐步做到：
 
-- 一条命令起引擎（读运行清单里的配置）
-- 一条命令跑完一个扫描矩阵并落盘（原始结果 + `/metrics` 样本 + 运行清单）
-- 一条命令出图（前沿曲线、机制指标、副作用）
-- 微基准可独立运行并输出天花板数字
-- 环境镜像 / 快照可复用；依赖 lock
+- 按运行清单启动一个固定配置的引擎；
+- 一条命令运行已定义的小扫描，落盘请求结果、失败与原始 metrics；
+- 一条命令输出容量、延迟、goodput 图和 SLO 已测边界；
+- 保存模型/软件/硬件/负载/命令与原始数据位置，形成可复跑清单。
+
+微基准、故障注入和多机编排随对应实验增加，不在第一天建立通用平台。读文档、改脚本、解析数据不需要持续占用租来的 GPU。
 
 ## 7. 数据管理
 
-- `data/<run_id>/` 存原始结果、metrics 样本、运行清单、启动命令。
-- 大文件（trace、模型）不入库，记录来源与校验和。
-- 每章 writeup 引用的每个数字都能回溯到一个 `run_id`。
+- 统一用 `data/runs/<run_id>/`，包括 manifest、原始请求/指标、汇总与启动命令；大文件存外部时记录位置、校验和与生成方式。
+- 每个数字可回溯到运行与采样范围；区分学习、机制、设备微基准、端到端与生产观察。
+- 模型、trace、账号凭证和含敏感内容的原始 prompt 不入公开仓库；仅提交可公开的小样本和元数据。
+- 基线和改动保持同等配置；硬件变化同时改变其他资源时，不能把全部差异归因于某一条互联。

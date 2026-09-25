@@ -1,147 +1,138 @@
-# 09 学习路线：前置、融合、项目外
+# 09 学习路线：最小前置、问题驱动、工程深度
 
-本文件回答：项目启动前必须会什么；每章开始前学什么；哪些知识在项目里实践、哪些只在项目外理解或小幅实操。它服务于 `02` 的章节顺序，不改变主线。
+初始化：2026-09-23。修订：2026-09-25，依据 D-020～D-024。
 
-初始化日期：2026-09-23。
+本文件约束学习方式与验收证据，不预先指定每章一定会出现的瓶颈、必须采用的硬件或优化。主线仍是 [02](02-mainline.md) 的多轮长上下文 KV 容量、复用与数据搬运；不扩成从 agent 到 kernel 的全栈课程。
 
-## 1. 原则
+## 1. 原则：需求决定支持什么，正确性决定怎么支持，测量决定优化哪里
 
-1. **三类知识**：
-   - **前置**：不会就读不懂引擎 KV 路径、做不了 Ch0 算术。项目启动前完成。
-   - **项目内实践**：直接变成 `micro/`、`analysis/`、`bench/`、`writeups/` 或 PR 里的产出。
-   - **项目外**：主线展开不了的，只做理解或小实操，产出进 `notes/`。
-2. **just-in-time**：每章的知识只在开章前一周内学，不提前囤积。
-3. **学习不算证据**（`01` §4.3）：学到的东西必须转成微基准代码、writeup 段落、PR 或源码拆解文章之一，否则只算准备。
-4. **产出归位**：阅读笔记与练习脚本进 `notes/`；能当测量工具的进 `micro/` 或 `analysis/`；进 `src/` 仍受 D-008 约束。
-5. **自研微基准按引擎访问模式构造**（D-016）：这是阶段 1 写 C++ / CUDA / io_uring / verbs 代码的正当通道。
+1. **最小前置与第一版服务交错完成。** 不再要求先纯学习三周、读完四篇论文或通读引擎，才允许搭 baseline。先运行一个请求，再围绕它补知识。
+2. **先有认识，再按需深入。** 提前知道硬件/技术连接哪里、改变哪段成本、不能解决什么；遇到现象后才学到能区分假设；真正改代码时才学接口与实现。
+3. **两种触发都有效。** 性能触发：观测到排队/复制/容量问题。需求触发：所选模型、dtype、并行方式或上游任务改变了缓存契约。模型适配不必伪装成性能优化。
+4. **学习的停止条件是能推进下一次验证。** 能提出一个有区分力的实验就回到实验，不沿知识树无限展开。另保留少量架构浏览以发现未知可能性，但不把浏览变成必修清单。
+5. **读过不等于实现过。** 概念笔记可以帮助理解，不是负分；面试证据还要区分复现、修改、故障/边界验证和生产经验。
+6. **有一段可负责的执行路径，不预造所有组件。** 先理解/复现已有实现，再从实际缺口中接管一处修改或适配。可以贡献给上游；不要求新造 NVMe 引擎、通信库、router，也不以 PR 数量或是否合并作为开工/投递门槛。
+7. **正确性不等性能批准。** 路径验收、资源上限、取消/失败处理和必要可观测性可以先做；优化功能仍遵守「因为测到了 X」。
 
-## 2. 深度等级
+## 2. 深度等级与产出
 
-| 等级 | 含义 | 自检标准 |
+| 等级 | 自检标准 | 不代表什么 |
 |---|---|---|
-| L1 了解 | 知道是什么、解决什么问题 | 能用两三句话讲清 |
-| L2 理解 | 懂原理与取舍，能估算 | 能画图、能做数量级估算、能比较方案 |
-| L3 掌握 | 动手实现或改造过 | 有能跑的代码与带 manifest 的数据 |
-| L4 精通 | 能做生产级设计与优化 | 功能级 PR；能讲清设计决策 |
+| L1 认识 | 能说清作用、边界、位于哪条路径 | 不代表会部署或编程 |
+| L2 理解 | 能画路径、算数量级、提出竞争性解释和验证方法 | 不代表有实现经验 |
+| L3 实践 | 用真实接口复现/改造过，有测试、配置和可回溯记录；标清本人修改 | 单次跑通不代表生产成熟 |
+| L4 负责一段实现 | 能解释设计、所有权、异常、性能和失效边界，有回归证据 | 一个功能 PR 不等于「精通」或完整生产经验 |
 
-## 3. 总览
+练习进 `notes/`；复用测量工具进 `micro/`、`bench/`、`analysis/`；真实实现进 `src/` 或上游 fork；正式实验结论进 `writeups/`。同一项不需要重复写笔记、模拟器、后端和文章。
 
+## 3. 最小前置：只为第一版闭环服务
+
+| 内容 | 先学到哪里 | 闭环证据 |
+|---|---|---|
+| Transformer 推理与 KV | token、prefill/decode、causal attention、KV 为什么可复用；计算/访存限制依负载而变，不把 prefill/decode 永久贴标签 | 复用 HF 小模型组件写 decode 循环；固定输入比较 cache 开/关的每步 logits，在同 dtype/backend 下设容差；无需从零实现 Transformer |
+| 一个开发模型的容量 | 读 config；dense/GQA 的层数、KV 头、head_dim、dtype；权重、KV、运行时预留分别计算 | 一个容量脚本与手算；解释它预测的是驻留 token，不是直接预测 SLO 并发 |
+| PyTorch/CUDA 最小集 | dtype/device/shape/stride，pinned/pageable，异步提交与完成、正确计时 | 一个有预热和同步边界的 H2D/D2H 脚本；能解释测的是提交还是完成；多流调优留后面 |
+| 主引擎最短请求路径 | 请求进入、调度、block 分配、prefix hit、执行、完成/释放 | 用实际类/函数画一次冷请求与一次命中请求；通过计数或日志确认命中，不先读所有 connector |
+| 测量基本口径 | session/turn/request、并发/到达率、TTFT、每请求 TPOT、逐 token ITL、失败/超时、预热与重复 | 固定一组小负载，保存逐请求结果和运行清单，画一条并发扫描曲线；样本不足不作稳定 p99 声明 |
+| 硬件与技术路径概览 | GPU 显存、DRAM、SSD、网络；PCIe/NVLink/RDMA/GDS/CXL 各改变什么；区分设备、互联、API | 一张标明生产者、消费者和中转 buffer 的路径图；能提出「可能有关/明显无关」，不要求配置所有硬件 |
+
+**前置出口是小产出，不是读完资料。** 开发模型优先能在本地 RTX 4060 上运行的 0.5B～1.5B dense/GQA，具体模型、revision 和显存占用须实测；不坚持 7B，不把量化复杂度强行加到第一步。
+
+硬件概览只到 L1/L2：PCIe 是数据路径的一部分；NVLink 是否相关取决于端点与实际拓扑；RDMA 的内存访问不自动等于 GPU 直传；GDS 需区分直接与兼容中转路径；CXL 是互联/内存扩展机制，不能机械排成一个固定延迟层级。
+
+PagedAttention 的相关部分和当前引擎 prefix 文档按上述问题读。offload 文档在首次恢复实验前读；Mooncake 深读在接远端对象时读；GLM/混合模型文章在适配需求出现时读。`06` 的星级表示相关性，不再表示开工前必须全部完成。
+
+## 4. 第一版项目与阶段 0 出口
+
+第一版 = **一个固定模型 + 一个多轮 agent-like workload + stock vLLM GPU-resident KV（prefix caching 开启，无外部卸载）+ 可重复评测**。它不是新推理引擎，也不是完整 agent 平台。
+
+自己维护的最小代码是：负载定义/现成压测器适配、扫描 runner、metrics/manifest 落盘、容量脚本、SLO 统计与画图。暂不要求自研后端、PD、远端服务、Grafana 或 PR。
+
+最低验收：
+
+- 冷请求、热前缀请求、绕过/清空缓存后的对照能被区分；输出可用，且有真实命中证据。
+- 多个并发点重复运行，保留首轮与后续轮、成功与失败；定义 SLO 后再跑，不按结果挑阈值。
+- 报告「已测点中满足阈值的最大并发」或当前上/下界，不把稀疏扫描称为精确最大值。
+- 容量预测与实测比较，区分 KV 占用、重算、排队或计算拥塞；没有证据不把 TTFT 变差叫作 HBM wall。
+- 保存 `data/runs/<run_id>/` 清单、原始结果和图，别人能按记录重跑。
+
+从第一次小扫描开始做项目。若没有观察到墙，可以在安全范围内增加工作集或缩小测试 KV 预算；记录人为限制。仍未触发则如实报告，不扩大硬件或伪造悬崖以满足叙事。
+
+## 5. 实验—学习循环
+
+```text
+观察具体行为 / 接到明确适配需求
+→ 列出至少两个可能解释，或写出原契约失效的假设
+→ 找到缺少的知识，只补到能设计下一次验证
+→ 最便宜的区分实验（状态机/CPU/单 GPU/真实设备）
+→ 更新解释；必要时再改实现或租目标硬件
+→ 正确性 + 路径 + 资源回收 + 性能/副作用验收
 ```
-预备期（W1–W3）    纯学习 + ★★★ 阅读；项目只产出 notes/ 与容量算术
-阶段 0（W4–W9）    平台骨架 + micro/pcie + Ch0 + 源码拆解文章 + 小 PR
-阶段 1（M3–M5）    Ch1 → Ch2 → Ch3 → Ch4
-  └ 副线           RDMA verbs（Soft-RoCE）+ Transfer Engine 源码 → Ch5 预热
-阶段 2（M6+）      Ch5 → Ch6 → Ch7 → Ch8
-始终不展开          CXL / SPDK 深入 / TRT-LLM / FlashAttention 实现 / 投机解码实现
-```
 
-时间是相对刻度，只用于排序；推进以每步完成标准为准。
+一次记录只需回答：看到了什么？可能是哪一段？缺什么知识？下一步如何区分？什么结果才值得升级实验？
 
-## 4. 预备期（W1–W3）：前置
+租硬件不要求提前证明一定提速，但须写清它回答什么、如何确认真实数据路径、什么结果会停止继续投入。软模拟、WSL、原生 Linux、单卡和多卡结论各有范围；没有 RDMA 的结果不冒充真实 RDMA 数据。
 
-只学「读懂 vLLM KV 路径」与「做 Ch0 算术」所必需的东西。
+## 6. 按章学习菜单：不是每章开工前的一整套课程
 
-| 编号 | 前置知识 | 深度 | 实操 | 完成标准 |
-|---|---|---|---|---|
-| A | Transformer 推理与 KV cache | L2 | 需要（小） | 给一个 0.5B 级小模型手写带 KV cache 的 decode 循环，logits 与 HF 对齐；能说清 prefill 计算受限、decode 访存受限的原因 |
-| B | attention 变体与 bytes/token | L3 | 手算 | 从 `config.json` 手算正式模型与开发模型的 bytes/token，与 `02` §4 一致；能说明 GQA / MLA / 滑动窗口 / 混合层各自如何改变它 |
-| C | PyTorch 与 CUDA runtime 最小集 | L2 | 需要（小） | dtype / device、`pin_memory`、`non_blocking`、`torch.cuda.Stream` / `Event`；pinned vs pageable 的 H2D 计时脚本（`micro/pcie` 雏形） |
-| D | vLLM V1 KV 路径 | L3 源码级 | 读源码 + 画图 | 画出请求路径：scheduler → KV cache manager 分配 → block hash 前缀命中 → connector 查询外部命中 → worker load / save → 释放与驱逐；知道 per-tier metrics 与 KV events 的发出点 |
-| E | ★★★ 阅读 | L2 | 否 | PagedAttention、Mooncake、vLLM tiered offloading、GLM 5.3 Part 1；按 `notes/README.md` 模板各一页 |
-| F | 测量统计 | L2 | 否 | 分位数与样本量（p99 需要多少样本才稳）、预热、方差、Little's law；`bench/slo/` 要用 |
-| G | 工具入门 | L1→L2 | 需要（小） | 开发机上用 nsys 抓一次 vLLM decode 时间线、用 py-spy dump 一次调度线程并读懂 |
-
-**本期不学**：RDMA、io_uring、SPDK、GDS、KV 量化理论、PD 分离、FlashAttention 内部、CXL。
-
-**产出**：`notes/reading/` 四篇；`analysis/capacity/` 第一版容量算术；A、C 的练习脚本放 `notes/`。
-
-## 5. 阶段 0（W4–W9）：平台骨架 + Ch0
-
-| 类型 | 内容 |
-|---|---|
-| 项目内实践 | `04` §6 的三个「一条命令」；`src/kvwall/common/`（manifest、`/metrics` 解析、硬件信息采集）；`micro/pcie/` 第一版（PyTorch 版，阶段 1 换 CUDA C++）；Ch0 负载刻画与容量模型；源码拆解文章（`06` §5 列出的 KV 路径） |
-| 边做边学 | trace 分析（pandas）；EvalScope 多轮配方；Prometheus 数据模型（counter / gauge / histogram、counter 差分）；vLLM 贡献流程 |
-| 小 PR | 文档、测试、metrics 描述、复现脚本修复——目的是熟悉 review 流程 |
-| 项目外 | C++ 复习：RAII、移动语义、`std::thread` / atomic、内存序基础。小实操：线程安全的固定大小内存池（pinned buffer 池的 CPU 原型） |
-
-CUDA 目标收窄为「CUDA runtime + 能读懂一个 paged attention kernel 的接口（block table 如何传入）」，不要求读懂 kernel 实现（D-018）。
-
-**出口**：开发机上一条命令跑完 7B 小扫描并出图；`08` 「模型与负载」「软件栈」两节大部分关闭。
-
-## 6. 阶段 1（M3–M5）：Part I 按章融合
-
-### Ch1 HBM 层
-
-| 类型 | 内容 |
-|---|---|
-| 开章前学 | V1 抢占方式（swap / recompute）现状；块大小与碎片；CUDA graph 显存预留；FP8（E4M3 / E5M2）与 KV 量化的 scale 粒度 |
-| 项目内实践 | FP8 KV 臂；方法论第 6 步的精度副作用检查（困惑度或下游任务）；nsys 解释预测与实测差距 |
-| 项目外 | KIVI（K 按通道、V 按 token）、INT4 KV，L2。小实操：导出开发模型 KV，离线做 FP8 / INT8 / INT4 量化并看误差分布，结果进 `notes/` |
-
-### Ch2 主机内存层（CUDA 系统层主战场）
-
-| 类型 | 内容 |
-|---|---|
-| 开章前学 | PCIe（Gen4 x16 理论与可达、DMA、根复合体）；NUMA；stream / event 与拷贝计算重叠；pinned 分配成本；vLLM offloading worker 的拷贝实现 |
-| 项目内实践 | `micro/pcie/` 升级为 CUDA C++：pinned vs pageable × chunk 尺寸（按实际 `blocks_per_chunk`）× 流数 × NUMA × 4 卡并发；nsys 确认与 decode 的重叠；`analysis/` 下 trace 驱动的缓存模拟器，预测池大小 vs 命中率并与实测对比，LRU vs ARC 在模拟器中比较 |
-| 项目外 | 小实操：paged KV gather / scatter CUDA kernel（离散 block ↔ 连续 buffer），对比 `cudaMemcpy2DAsync` 与逐块 memcpy；若结论与差距分析相关则并入 writeup |
-| 只需理解 | S3-FIFO；前缀树约束下的淘汰，L2 |
-
-### Ch3 存储层（Linux IO 主战场）
-
-| 类型 | 内容 |
-|---|---|
-| 开章前学 | Linux IO 栈（page cache、脏页回写、O_DIRECT 对齐、blk-mq）；io_uring（SQ / CQ、SQPOLL、registered buffers / files、IOPOLL）；NVMe 队列模型；云盘与物理 NVMe 的差别 |
-| 项目内实践 | fio 天花板；`micro/blockdev/` 下 liburing + O_DIRECT 按 fs tier chunk 布局的读写器；perf / py-spy 每 IO CPU 成本；iostat。数据指向时再写自定义 `SecondaryTierManager`，复用 micro 代码 |
-| GDS | 机型支持则做直通 vs host 中转对照；不支持则用 cuFile 兼容模式学 API，writeup 中分析框架为何走 host，并标注未实测 |
-| 项目外 | SPDK（D-019）：malloc / aio bdev 无需 NVMe 硬件，跑通 hello_bdev，读架构文档（轮询、无锁、独占核、用户态驱动），L2 |
-| 只需理解 | NVMe-oF；SSD GC 与稳态性能，L1–L2 |
-
-### Ch4 同节点共享池
-
-| 类型 | 内容 |
-|---|---|
-| 开章前学 | MooncakeStore 架构（master、client、副本、租约）；内容寻址 key 语义；多写者、RETRY |
-| 项目内实践 | MooncakeStore 本地部署；读 Mooncake Store C++ 源码（驱逐、租约、put / get）；双写者竞争测量；第一个 Mooncake PR 的机会点 |
-| 项目外 | 一致性哈希、租约、「缓存可丢」下的弱一致设计；Raft 读到 L2 |
-
-### 阶段 1 副线：RDMA 预热（Ch3 开始后，每周固定少量时间）
-
-目的：缩小 D-006 的代价；阶段 2 开机即测，不在租来的多机上边学边调。
-
-| 步骤 | 内容 | 深度 |
+| 章节/触发 | 需要时深入 | 应形成的实现或验证证据 |
 |---|---|---|
-| 1 | Linux 开发机配置 Soft-RoCE（rxe） | — |
-| 2 | verbs 程序：注册 MR → 建 RC QP → 单边 WRITE 大块数据 → 轮询 CQ | L3 |
-| 3 | MR 注册耗时随大小的变化（Soft-RoCE 上只看趋势，不出正式数字） | L3 |
-| 4 | 读 Mooncake Transfer Engine 源码：拓扑感知选网卡、批量传输、多网卡聚合 | L2→L3 |
-| 5 | 读 NIXL 抽象层，与 Transfer Engine 对比 | L2 |
+| Ch1：GPU 容量、命中与抢占 | block/hash/refcount、实际抢占机制、chunked prefill、CUDA graph 预留、按 rank 容量和 KV dtype | 能解释驻留容量与 SLO 并发的差别；固定软件栈的原生基线；FP8 KV 在兼容机型上的实际验证，不把权重量化当 KV 量化 |
+| Ch2：主机恢复成本 | DMA、PCIe/NUMA、pinned 分配与共享区、stream/event、chunk 批量、恢复/卸载队列、淘汰/预取 | 独立拷贝与引擎路径对照；一处任务/复制/调度的改造候选；trace 模拟器或 gather/scatter kernel 仅在能回答问题时写 |
+| Ch3：存储恢复和吞吐 | page cache/回写、O_DIRECT 对齐、NVMe 队列、SQ/CQ、短 IO、提交/完成、registered buffers；SQPOLL/IOPOLL 按证据再学 | fio 与实际访问模式对照；安全测试文件上的异步读写/后端改造；排队、在途字节、失败与关闭测试 |
+| Ch4：共享复用 | 模型/revision/dtype/layout 身份，前缀链，Mooncake 对象/副本/租约，多写者与发布 | 不完整对象不命中；跨实例真实恢复；读取与驱逐竞争、取消、迟到完成和服务重启的边界 |
+| Ch5：跨节点与远端池 | MR/QP/CQ、注册生命周期、网络拓扑、批量传输、NIXL/Transfer Engine、元数据与数据面 | CPU/Soft-RoCE 预热后，在实际设备验证 payload、完成、失效与带宽；原生传输不自动等于 GPU Direct；服务指标与告警 |
+| Ch6：PD | P/D 交接、目的端预留、局部/全局 block 描述、分块流水、失败/取消、多轮反向复用 | 明确 source/destination 何时可用与可回收；传输与 TTFT 分解；不同 TP 的布局转换仅在需要时展开 |
+| Ch7：路由 | KV events、缓存视图新鲜度、恢复成本、活跃负载、准入与背压 | 复用 router，定点验证命中与负载取舍；不另造完整 agent 调度平台 |
+| Ch8 或较早的真实适配需求 | MLA、滑动窗口、混合/递归状态、推测有效 token 范围、layout/schema | 一次改变原 KV 假设的适配/兼容验证；原生已支持就明确是验证，不虚构新功能 |
 
-**产出**：`micro/rdma/` 自研基准代码（Ch5 在 eRDMA 上直接跑）；Transfer Engine 源码拆解文章。
+生命周期从 Ch2 起贯穿，不等到 Ch6：提交不等于完成，请求结束不等于 DMA/IO 结束；in-flight buffer 不能被提前复用；部分失败不能成为完整命中；队列和在途内存有上限。测试先覆盖已接入的路径，随着层级扩展再扩充。
 
-## 7. 阶段 2（M6+）：Part II / III
+GDS 边界：当前 host-centric 次级层只拿 CPU memoryview，不能仅替换次级层 IO 就获得 SSD→GPU。先做独立路径探测或复用支持该路径的后端，确有需求才进入 GPU worker/connector；cuFile 成功可能是兼容模式，必须验证。
 
-| 章 | 开章前学 | 项目内实践 | 项目外 / 只需理解 |
-|---|---|---|---|
-| Ch5 | eRDMA 特性；GPUDirect RDMA（nvidia-peermem / dma-buf）；UCX 基础 | perftest 与副线自研基准在 eRDMA 实测；GPUDirect RDMA 可用性探测；Grafana 面板与告警；热启动曲线 | RoCE 拥塞控制（PFC / ECN / DCQCN），L1–L2 |
-| Ch6 | DistServe；NixlConnector 源码；TTFT 分解方法 | GPU 直传 vs host 中转；P/D 比例扫描 | P/D 不同 TP 下的 KV 重排，L2；传输失败回退重算、取消请求的资源回收，读源码到 L2 |
-| Ch7 | SGLang router / Dynamo KV router 源码；KV events | 命中率 vs 负载均衡曲线；router 瓶颈 | 带负载上限的一致性哈希，L2 |
-| Ch8 | MLA（DeepSeek-V2）；混合架构 state cache；Marconi；HiSparse | 重跑 Ch1–3；hybrid allocator 边界 | 读 FlashAttention / FlashInfer paged 接口中 block table 的传法与 MLA kernel 的 KV 布局，只读不写，L2 |
+SPDK 先理解与小实操（malloc/aio bdev）；只有实际需要比较其代价时才接本地 NVMe/主线后端。RDMA 预热在跨节点实验已经有明确问题时进行，不变成另一套每周必做课程。C++ 的 RAII/所有权、线程/锁/atomic、调试与数据结构从阶段 0 持续结合真实代码练习，不留到面试前突击；不为练习强造无锁组件。
 
-## 8. 始终不在项目里展开
+## 7. 现代配置：代表性覆盖，不堆技术
 
-| 知识点 | 处理 | 深度 |
+| 内容 | 本项目目标 | 不要求 |
 |---|---|---|
-| CXL | 讲清在层级中的位置（DRAM 与 RDMA 远端内存之间）、延迟特性、现状 | L1–L2 |
-| FlashAttention | tiling 思想与 paged 接口，不实现 | L1–L2 |
-| 投机解码 | 原理；被拒 token 的 KV 回滚对缓存管理的影响 | L1–L2 |
-| TensorRT-LLM | 架构与 KV 管理方式 | L1 |
-| CacheGen / CacheBlend / H2O 等 | 压缩与非前缀复用思路 | L2 |
-| 3FS / FlexKV / LMCache | 设计文档；能与 Mooncake、vLLM tiering 做方案对比 | L2 |
-| Rust / Go | 阶段 2 视目标团队技术栈决定 | — |
+| KV 量化 | 一种兼容配置下的真实存取/传输与容量、质量验证；先对同量化原生路径验存取，再比较量化本身的质量变化 | 研发新量化算法；本地硬件不兼容时强行开启 |
+| 模型/布局适配 | 选择一次确实改变缓存身份、状态或布局的适配，或明确标注兼容验证 | 实现完整新模型 forward；堆模型数量 |
+| 推测解码/MTP | 理解 lookahead、已确认 token、回滚/取消与缓存发布；所选部署或修改涉及它时验证一个组合 | 训练 draft 或优化接受率；与模型适配并行开第二主线 |
+| FlashAttention/kernel | 理解 paged 接口、block table、布局与同步；有证据时写搬运/转换 kernel | 从零实现 FlashAttention |
+| PD/远端缓存 | 为跨实例复用/迁移需求接入，验证实际路径和失败边界 | 开启几个 connector 就宣称任意组合可用 |
 
-## 9. 维护
+机制实验可简化配置；主要性能对照须为同模型、同量化、同 backend、同资源的合理 stock 配置与修改后配置，不靠禁用原生优化制造收益。先审计实际启用的功能，不把「默认」理解成「没有现代优化」。
 
-- 每章结束在 `notes/retro/` 核对本章知识项：完成、降级（改为项目外）、推迟。
-- 调整本路线的方向性内容，先写 `07`。
-- 项目外小实操若产出了与某章差距分析相关的结论，移入该章 writeup，并按 `03` 补 manifest。
+## 8. 面试准备：项目中积累深度，面试前补广度与迁移
+
+每章结束就留一张证据卡：**原现象 → 假设 → 实验 → 改动/负结果 → 正确性 → 性能与代价 → 边界 → 本人负责的代码**。没有实现的条目标为理解/复现，没跑过的硬件标未实测。
+
+| 面试自测方向 | 应能回答的问题 |
+|---|---|
+| 容量与布局 | bytes/token 如何计算？为何每 rank 可能不同？驻留会话数为何不等于满足 SLO 的并发？ |
+| 复用与身份 | 同一文本为什么不一定是可共享 KV？混合状态缺一部分还能否恢复？ |
+| IO 与硬件 | 时间花在排队、复制、同步还是计算？所谓零拷贝省哪一次？何时回载不如重算？ |
+| 生命周期 | 取消、超时、迟到完成、驱逐同时发生，谁持有引用？怎样验证没泄漏、没读错？ |
+| 调度与服务 | 命中率提高为什么仍会变慢？恢复/预取与前台请求怎么争资源？失败后重算对其他请求有什么代价？ |
+| 配置迁移 | dtype、模型状态、拓扑、并行方式变化后，哪些假设要重新检查？ |
+
+面试前补 Raft/租约、缓存策略和相邻系统的方案对比；CXL、NVMe-oF、压缩/非前缀复用、TensorRT-LLM 按目标岗位到 L1/L2，不冒充工程经历。算法、Linux/网络/并发基本功持续准备，不由该项目自动覆盖。
+
+一条真实路径已产生可信 baseline、机制证据、修改/适配及回归时即可整理投递材料；不等 Ch0–Ch8 全部完成，也不保证做完就覆盖所有面试题。
+
+## 9. 维护与一手参考
+
+每次复盘只更新本次实际涉及项：已理解、已复现、已修改、未验证、延期/取消。方法和方向变更进 [07](07-decision-log.md)，测量口径进 [03](03-methodology.md)。
+
+以下文档为理解接口的起点，不是全部前置必读；实际使用时记录访问日期和所测 commit，latest 文档不替代代码 pin：
+
+- [vLLM prefix caching](https://docs.vllm.ai/en/latest/design/prefix_caching/)
+- [vLLM hybrid KV manager](https://docs.vllm.ai/en/latest/design/hybrid_kv_cache_manager/)
+- [vLLM secondary tier 接口](https://docs.vllm.ai/en/latest/api/vllm/v1/kv_offload/tiering/base/)
+- [vLLM quantized KV](https://docs.vllm.ai/en/latest/features/quantization/quantized_kvcache/)
+- [vLLM NIXL 兼容矩阵](https://docs.vllm.ai/en/latest/features/nixl_connector_compatibility/)
+- [SGLang HiCache](https://docs.sglang.io/advanced_features/hicache_design.html)
+- [CUDA 性能实践](https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html)
+- [CUDA on WSL 限制](https://docs.nvidia.com/cuda/wsl-user-guide/index.html)
+- [GDS 路径与兼容模式](https://docs.nvidia.com/gpudirect-storage/overview-guide/)
