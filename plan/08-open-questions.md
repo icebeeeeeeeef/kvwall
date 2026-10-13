@@ -32,7 +32,8 @@
 - [ ] eRDMA：实例配置方式、是否支持 GPUDirect RDMA、perftest 实测带宽与延迟。
 - [ ] GDS 可用性；若可用，驱动与文件系统要求。
 - [ ] CPU-only 节点作为远端池的规格与网络。
-- [ ] Linux 开发机的具体选型（D-017）：内核版本是否支持所需 io_uring 操作码；能否加载 `rdma_rxe`（Soft-RoCE 副线）；nsys / perf 权限。
+- [ ] Linux 开发机的具体选型（D-017）：内核版本是否支持所需 io_uring 操作码；能否加载 `rdma_rxe`（Soft-RoCE 副线）；nsys / perf 权限。切换时点见 D-020。
+- [ ] WSL2 + 4090 阶段（D-020）：vLLM 在 WSL 下是否确实关闭 `pin_memory`（查源码与版本）；WSL2 上 nsys 可用的功能范围；`.wslconfig` 内存上限设置；是否改装原生 Linux（双系统 / 独立磁盘）。
 - [ ] 235B-A22B 级验证点的可行配置（8×L20 FP8 是否装得下；或 4×H20）。
 
 ## 方法与流程
