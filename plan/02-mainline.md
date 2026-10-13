@@ -117,7 +117,7 @@ L*: reload_time(L*) = recompute_time(L*)     # 低于 L* 回载不划算
 
 #### Ch6 PD 分离
 
-- **问题**：vLLM 声称 host 中心的 P2P 层靳合并 IO 优于 GPU 直传的 PD 方案——用 NixlConnector（GPU 直传）对 p2p tier（host 中转），测传输时间随 prefill 长度的曲线、TTFT 分解、与 chunked prefill 的重叠。
+- **问题**：vLLM 声称 host 中心的 P2P 层靠合并 IO 优于 GPU 直传的 PD 方案——用 NixlConnector（GPU 直传）对 p2p tier（host 中转），测传输时间随 prefill 长度的曲线、TTFT 分解、与 chunked prefill 的重叠。
 - **最小配置**：同节点 2P+2D 起步 → 跨节点；8 卡时做 P/D 比例扫描（AgentX 博客列为三大挑战之一）。
 - **硬件层**：L20 无 NVLink，`nvidia-smi topo -m` 看 P2P 路径；host bounce；eRDMA 是否支持 GPUDirect RDMA 待确认——若不支持，「这类云网络上 GPU 直传 PD 不可用、host 中心是唯一路径」本身就是硬件现实层面的发现。
 - **边界**：机制研究，不做吞吐声明，除非达到 8 卡且负载真实。
