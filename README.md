@@ -1,86 +1,76 @@
 # kvwall
 
-**KV 容量墙：从 HBM 到远端池，SLO 约束下的并发前沿与每一层的硬件天花板。**
+**KV 容量墙：从 GPU 显存到远端池，SLO 约束下的并发前沿与数据搬运。**
 
-以「LLM 推理的内存层级与数据搬运」为主线的个人工程实践项目。目标不是做一个新的 KV cache 引擎，而是：
+以 LLM 推理的内存层级与数据搬运为主线。不是从零实现推理引擎，也不是把所有推理优化技术堆在一个平台中，而是：
 
-- 一个长期维护的**实验平台**（负载回放、测量口径、微基准、容量模型、可观测性）
-- 一系列在平台上完成的**闭环**（每层缓存一章，每章对着硬件天花板算账）
-- 从闭环数据里**长出来的组件**（以现有引擎插件 / 后端的形式 upstream）
+- 用可复现的多轮长上下文负载、容量模型与测量工具解释资源边界；
+- 在真实引擎中逐步研究 KV 保留、卸载、恢复、复用与调度；
+- 从需求/证据中接管一段真实执行路径，通过修改、适配和回归形成工程成果。
 
-脊柱问题：给定 SLO，一组内存吃紧的 PCIe 推理卡能撑多少个长上下文 agent 会话；每加一层缓存，这个数字移动多少、代价是什么、离硬件天花板差多远、到哪里失效。
+主引擎 vLLM，远端池优先 MooncakeStore；SGLang HiCache 等按对照或上游需求引入，不作为第一步前置。
 
-主引擎 vLLM（tiered KV offloading 框架），远端池 MooncakeStore，阶段 2 以 SGLang HiCache 为对照臂。详见 `plan/`。
+## 第一版最小项目
 
-## 目录树
-
-```
-kvwall/
-├── plan/            总体方案规划（策略、主线、方法论、基础设施、JD 映射、参考、决策日志、开放问题、学习路线）
-├── notes/           过程记录
-│   ├── reading/       阅读笔记（每篇 ★★★ 参考一页）
-│   ├── discussions/   讨论记录
-│   └── retro/         阶段复盘
-├── src/kvwall/      可复用代码（Python 包）
-│   ├── tiers/         自定义 SecondaryTierManager（仅当数据指向时才出现）
-│   └── common/        运行清单读写、metrics 解析等公共工具
-├── bench/           压测与测量
-│   ├── workloads/     trace 获取、派生分布、数据集构造
-│   ├── runner/        起引擎 / 跑扫描矩阵的驱动
-│   ├── slo/           SLO 约束下的容量计算、goodput
-│   └── scrape/        /metrics 定时抓取
-├── micro/           微基准：先打硬件天花板
-│   ├── pcie/          H2D / D2H、pinned vs pageable、chunk 尺寸、多流、NUMA；CUDA C++ 自研基准
-│   ├── blockdev/      fio 配方：O_DIRECT / io_uring / QD / bs；liburing 自研基准
-│   └── rdma/          perftest 配方与解析；verbs 自研基准
-├── analysis/        数据处理与绘图
-│   ├── capacity/      容量模型（算术 → 预测；后与测量对比）
-│   ├── plots/         固定样式的前沿曲线、机制指标、副作用图
-│   └── notebooks/     探索性分析（结论落回 plots/ 与 writeups/）
-├── dashboards/      可观测性
-│   ├── grafana/       面板 JSON
-│   └── alerts/        Prometheus 告警规则
-├── data/            实验数据（大文件不入库）
-│   ├── runs/          data/runs/<run_id>/ ：manifest + summary 入库，raw 不入库
-│   └── traces/        外部 trace 的来源、校验和、派生方式（trace 本体不入库）
-└── writeups/        每章文章草稿
-    └── templates/     章节模板
+```text
+固定小模型 + 多轮 agent-like workload
+                ↓
+stock vLLM：GPU-resident KV + prefix caching
+                ↓
+逐请求结果/原始 metrics + 容量估算 + 重复扫描与 SLO 边界
 ```
 
-## 一个闭环在仓库里的流动
+先在本地小配置搭这一版，无外部 offload、无 PD、无远端服务要求。自己先维护负载适配、runner、统计与数据；后续优化都与明确的原生基线比较。
 
+学习和搭建交错推进，不先纯学习三周；最终工程责任不止 benchmark，但也不预先强制自研某种后端或全部算法。
+
+## 目录
+
+```text
+plan/                 方向、主线、方法、环境、JD、决策与学习路线
+notes/reading/        上游/资料阅读与来源
+notes/discussions/    学习目标、讨论与执行备忘
+notes/retro/          阶段复盘
+src/kvwall/tiers/     有实际需求的 tier/适配实现
+src/kvwall/common/    manifest、指标解析等公共工具
+bench/workloads/     负载定义、派生与回放适配
+bench/runner/        实验驱动
+bench/slo/           SLO 与 goodput 统计
+bench/scrape/        原始指标采集
+micro/pcie/          GPU/主机搬运微基准
+micro/blockdev/      存储访问模式与 IO 微基准
+micro/rdma/          协议/设备传输验证
+analysis/capacity/   容量模型
+analysis/plots/      固定绘图
+analysis/notebooks/  探索分析
+ dashboards/         后续 Grafana/告警（首版不要求）
+data/runs/<run_id>/  manifest、汇总与原始结果位置
+data/traces/         外部数据来源/许可/校验和
+writeups/            正式闭环报告与复现说明
 ```
-plan/02-mainline.md（章的问题与最小配置）
-  → plan/08-open-questions.md（挑出该章待答问题）
-  → analysis/capacity/（算术：预测悬崖 / 交叉点）
-  → micro/（打该硬件层的可达天花板）
-  → bench/workloads/ + bench/runner/（构造负载、跑扫描矩阵）
-  → data/runs/<run_id>/（原始结果 + manifest）
-  → bench/slo/ + analysis/plots/（SLO 容量、前沿曲线、机制指标、副作用）
-  → 差距分析（天花板 − 实际，逐项归因，证据来自 nsys / perf / py-spy / iostat）
-  → writeups/chNN-*.md（按模板写）
-  → plan/07-decision-log.md（若指向功能 / 组件 / PR，记「因为测到了 X」）
-  → src/kvwall/tiers/ 或 upstream PR（仅当数据指向）
-```
+
+## 一个闭环
+
+问题/适配需求 → 最小验证 → 按需学习 → 容量与路径证据 → 干预/负结果 → 正确性与副作用回归 → writeup/上游贡献。
+
+先确认操作实际发生，再分析性能；卡数、模型大小和 PR 数量不能替代证据。
 
 ## 从哪里开始读
 
-1. `plan/README.md` — 规划总览与阅读顺序
-2. `plan/02-mainline.md` — 技术主线（章节、规模阶梯、模型选择）
-3. `plan/09-learning-roadmap.md` — 前置知识与各章学习 / 实践的融合方式
-4. `plan/03-methodology.md` — 闭环怎么做、怎么算完、怎么写
-5. `plan/07-decision-log.md` — 已做的决定和理由
+1. [学习路线](plan/09-learning-roadmap.md)：前置出口与第一版项目。
+2. [技术主线](plan/02-mainline.md)：Ch0/Ch1 起步，后续按问题扩展。
+3. [测量方法](plan/03-methodology.md)：路径、正确性、SLO 与复现。
+4. [环境和预算](plan/04-infra-and-budget.md)：本地验证与按需租用。
+5. [决策日志](plan/07-decision-log.md)：历史门槛和最新修订。
 
-## 约定
+更多过程记录在 [notes](notes/README.md)，规划导航在 [plan](plan/README.md)。
 
-- 规划类文档只写方向、边界、规则、约束；实施细节进 `writeups/` 与 `notes/`。
-- 改变方向的决定先写进 `plan/07-decision-log.md`；新增功能必须有「因为测到了 X」。
-- 每次正式测量必须有 `data/runs/<run_id>/manifest.yaml`，否则数据不采用；writeup 里每个数字可回溯到一个 `run_id`。
-- 估算数字标「粗算」；正式数字只来自带 manifest 的测量。
-- 开发环境（1 卡 + 7B 级模型）不出正式数字。
-- 文风对齐 vLLM 博客：平、准、每个数字带定义。
+## 约定与状态
 
-## 状态
+估算注明假设；实际数字来自带 manifest 的运行，统一使用 `data/runs/<run_id>/`。允许小模型/单卡/WSL 的范围内证据，不外推未运行的设备、配置或生产容量。大数据与凭证不入库。
 
-- 2026-09-18：规划初始化（`plan/`），目录骨架建立。阶段 0 尚未开始。
-- 2026-09-23：新增学习路线 `plan/09-learning-roadmap.md`；决策 D-016 ~ D-019（自研访问模式微基准、真 Linux 开发环境、阶段 0 拆出预备期、SPDK 项目外小实操）。下一步：预备期。
+- 2026-09-18：规划与目录骨架初始化。
+- 2026-09-23：增加学习路线与 D-016～D-019。
+- 2026-09-25：调整为最小前置与实验并行，区分 baseline、工程责任和代表性适配，更新 D-020～D-024。
+
+**当前仍是规划/文档阶段：上述 runner、最小服务与性能结果尚未在本仓库实现或验证。下一步是完成前置小产出并搭首个闭环，不是等待全部章节知识完成。**
