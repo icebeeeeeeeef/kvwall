@@ -5,6 +5,7 @@
 ## 首个最小闭环要回答
 
 - [ ] 本地 RTX 4060 的实际显存/驱动、OS/WSL 与可用工具；小模型能否正常服务一个请求？
+- [ ] WSL2 受限路径（D-025）：所钉 vLLM 版本在 WSL 下是否关闭 `pin_memory`；nsys 在 WSL2 的可用功能范围；`.wslconfig` 内存上限；是否需要改装原生 Linux。
 - [ ] 选择一个可装下的 dense/GQA 开发模型（优先 0.5B～1.5B），固定 revision/tokenizer；不坚持 7B。
 - [ ] 固定 vLLM 版本/commit、依赖和安装方式；审计实际 attention backend、dtype、prefix、chunked prefill 与 CUDA graph。
 - [ ] 从 config 算权重和 KV 数量级；实际 KV 预算/运行时预留是多少？
